@@ -1,11 +1,15 @@
-obj-m += simon.o
+obj-m += led.o
 
 KDIR = /lib/modules/$(shell uname -r)/build
 
-all:
-	make -C $(KDIR) M=$(shell pwd) modules
-	rm -rf *.symvers *.mod.o *.mod *.mod.c *.o *.order
+all: module dt
+	echo Built Device Tree Overlay and kernel module
 
+module:
+	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+dt: ledoverlay.dts
+	dtc -@ -I dts -O dtb -o ledoverlay.dtbo ledoverlay.dts
 clean:
-	make -C $(KDIR) M=$(shell pwd) clean
+	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+	rm -rf ledoverlay.dtbo
 
