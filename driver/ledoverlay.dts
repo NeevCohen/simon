@@ -9,8 +9,16 @@
 				compatible = "led";
 				label = "led";
 				status = "okay";
-				led-gpios = <&gpio 17 0>,
-				            <&gpio 27 0>;
+				led-gpios = <&gpio 17 0>, // blue
+				            <&gpio 27 0>, // red
+				            <&gpio 22 0>, // green
+				            <&gpio 23 0>; // yellow
+
+				btn-gpios = <&gpio 5 0>, // blue
+				            <&gpio 6 0>, // red
+				            <&gpio 26 0>, // green
+				            <&gpio 24 0>; // yellow
+
 			};
 		};
 	};

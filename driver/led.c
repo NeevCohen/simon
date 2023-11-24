@@ -4,14 +4,19 @@
 #include <linux/property.h>
 #include <linux/platform_device.h>
 #include <linux/of_device.h>
-#include <linux/gpio/consumer.h>
 #include <linux/proc_fs.h>
+
+#include "led.h"
 
 MODULE_AUTHOR("Neev Cohen");
 MODULE_LICENSE("GPL v2");
 
+static struct led_device led_dev;
+
 #define LED_BLUE_INDEX 0
 #define LED_RED_INDEX 1
+#define LED_GREEN_INDEX 2
+#define LED_YELLOW_INDEX 3
 
 static int dt_probe(struct platform_device *pdev);
 static int dt_remove(struct platform_device *pdev);
@@ -33,36 +38,36 @@ static struct platform_driver led_driver = {
 	},
 };
 
-static struct gpio_desc *blue = NULL, *red = NULL;
-
-static struct proc_dir_entry *proc_file = NULL;
-
-char data_buffer[1096];
-
 static ssize_t led_write(struct file *filp, const char *user_buffer, size_t count, loff_t *offset) {
 	int led, action;
 	struct gpio_desc *gpio;
 
-	memset(data_buffer, 0, sizeof(data_buffer));
+	memset(led_dev.data_buffer, 0, sizeof(led_dev.data_buffer));
 
-	count = min(count, sizeof(data_buffer));
+	count = min(count, sizeof(led_dev.data_buffer));
 
-	if (copy_from_user(data_buffer, user_buffer, count)) {
+	if (copy_from_user(led_dev.data_buffer, user_buffer, count)) {
 		pr_err("[led] Failed to copy data from user\n");
 		return -EFAULT;
 	}
 
-	if (sscanf(user_buffer, "%d,%d", &led, &action) != 2) {
+	if (sscanf(led_dev.data_buffer, "%d,%d", &led, &action) != 2) {
 		pr_err("[led] Invalid command\n");
 		return -EINVAL;
 	}
 
 	switch (led) {
 		case LED_BLUE_INDEX:
-			gpio = blue;
+			gpio = led_dev.blue;
 			break;
 		case LED_RED_INDEX:
-			gpio = red;
+			gpio = led_dev.red;
+			break;
+		case LED_GREEN_INDEX:
+			gpio = led_dev.green;
+			break;
+		case LED_YELLOW_INDEX:
+			gpio = led_dev.yellow;
 			break;
 		default:
 			return count;
@@ -73,31 +78,7 @@ static ssize_t led_write(struct file *filp, const char *user_buffer, size_t coun
 }
 
 static ssize_t led_read(struct file *filp, char __user *user_buffer, size_t count, loff_t *offset) {
-	int value;
-	char led_value_str;
-
-	if (*offset) {
-		return 0;
-	}
-
-	value = gpiod_get_raw_value(blue);
-
-	switch (value) {
-		case 0:
-			led_value_str = '0';
-			break;
-		case 1:
-			led_value_str = '1';
-			break;
-		default:
-			break;
-	}
-	if (copy_to_user(user_buffer, &led_value_str, 1)) {
-		pr_err("[led] Failed to copy led value to user\n");
-		return -EFAULT;
-	}
-	(*offset)++;
-	return 1;
+	return 0;
 };
 
 static struct proc_ops fops = {
@@ -105,45 +86,99 @@ static struct proc_ops fops = {
 	.proc_read = led_read,
 };
 
+static int led_setup_gpio(struct device *dev) {
+	int ret = 0;
+
+	led_dev.blue = gpiod_get_index(dev, "led", LED_BLUE_INDEX, GPIOD_OUT_LOW);
+	if(IS_ERR(led_dev.blue)) {
+		pr_err("[led] Failed to setup blue LED\n");
+		return PTR_ERR(led_dev.blue);
+	}
+
+	led_dev.red = gpiod_get_index(dev, "led", LED_RED_INDEX, GPIOD_OUT_LOW);
+	if(IS_ERR(led_dev.red)) {
+		printk("[led] Failed to setup red LED\n");
+		ret = PTR_ERR(led_dev.red);
+		goto error_red;
+	}
+
+	led_dev.green = gpiod_get_index(dev, "led", LED_GREEN_INDEX, GPIOD_OUT_LOW);
+	if(IS_ERR(led_dev.green)) {
+		printk("[led] Failed to setup green LED\n");
+		ret = PTR_ERR(led_dev.green);
+		goto error_green;
+	}
+
+	led_dev.yellow = gpiod_get_index(dev, "led", LED_YELLOW_INDEX, GPIOD_OUT_LOW);
+	if(IS_ERR(led_dev.yellow)) {
+		printk("[led] Failed to setup yellow LED\n");
+		ret = PTR_ERR(led_dev.yellow);
+		goto error_yellow;
+	}
+
+	return ret;	
+
+error_yellow:
+	gpiod_put(led_dev.green);
+error_green:
+	gpiod_put(led_dev.red);
+error_red:
+	gpiod_put(led_dev.blue);
+	return ret;
+};
+
 static int dt_probe(struct platform_device *pdev) {
 	struct device *dev = &pdev->dev;
-
-	//blue = gpiod_get(dev, "led-blue", GPIOD_OUT_LOW);
-	blue = gpiod_get_index(dev, "led", LED_BLUE_INDEX, GPIOD_OUT_LOW);
-	if(IS_ERR(blue)) {
-		pr_err("[led] Failed to setup blue LED\n");
-		return PTR_ERR(blue);
+	int ret = 0;
+	
+	if ((ret = led_setup_gpio(dev))) {
+		return ret;
 	}
-
-	//red = gpiod_get(dev, "led-red", GPIOD_OUT_LOW);
-	red = gpiod_get_index(dev, "led", LED_RED_INDEX, GPIOD_OUT_LOW);
-	if(IS_ERR(red)) {
-		printk("[led] Failed to setup red LED\n");
-		gpiod_put(blue);
-		return PTR_ERR(red);
-	}
-
-	proc_file = proc_create("led", 0666, NULL, &fops);
-	if(proc_file == NULL) {
+	
+	led_dev.proc_file = proc_create("led", 0666, NULL, &fops);
+	if (led_dev.proc_file == NULL) 
+	{
 		pr_err("[led] Failed to create /proc/led\n");
-		gpiod_put(blue);
-		gpiod_put(red);
 		return -ENOMEM;
 	}
 
 	pr_info("[led] Successfully setup GPIO driver\n");
 
-	return 0;
+	return ret;
 }
 
 static int dt_remove(struct platform_device *pdev) {
 	pr_info("[led] Removing device from tree\n");
-	gpiod_put(blue);
-	blue = NULL;
-	gpiod_put(red);
-	red = NULL;
-	proc_remove(proc_file);
-	proc_file = NULL;
+	if (led_dev.blue) 
+	{
+		gpiod_put(led_dev.blue);
+		led_dev.blue = NULL;
+	}
+
+	if (led_dev.red) 
+	{
+		gpiod_put(led_dev.red);
+		led_dev.red = NULL;
+	}
+
+	if (led_dev.green) 
+	{
+		gpiod_put(led_dev.green);
+		led_dev.green = NULL;
+	}
+
+	if (led_dev.yellow) 
+	{
+		gpiod_put(led_dev.yellow);
+		led_dev.yellow = NULL;
+	}
+
+	if (led_dev.proc_file) 
+	{
+		proc_remove(led_dev.proc_file);
+		led_dev.proc_file = NULL;
+	}
+
 	return 0;
 }
 
