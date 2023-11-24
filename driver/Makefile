@@ -8,7 +8,7 @@ all: module dt
 module:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 dt: ledoverlay.dts
-	dtc -@ -I dts -O dtb -o ledoverlay.dtbo ledoverlay.dts
+	dtc -@ -O dtb -o ledoverlay.dtbo ledoverlay.dts
 clean:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
 	rm -rf ledoverlay.dtbo

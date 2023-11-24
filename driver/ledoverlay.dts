@@ -1,16 +1,16 @@
 /dts-v1/;
 /plugin/;
+
 / {
-	compatible = "brcm,bcm2711";
 	fragment@0 {
 		target-path = "/";
 		__overlay__ {
 			led {
 				compatible = "led";
-				status = "okay";
 				label = "led";
-				blue-led-gpio = <&gpio 17 0>;
-				button-gpio = <&gpio 27 0>;
+				status = "okay";
+				led-gpios = <&gpio 17 0>,
+				            <&gpio 27 0>;
 			};
 		};
 	};
