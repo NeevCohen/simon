@@ -14,11 +14,10 @@
 				            <&gpio 22 0>, // green
 				            <&gpio 23 0>; // yellow
 
-				btn-gpios = <&gpio 5 0>, // blue
-				            <&gpio 6 0>, // red
-				            <&gpio 26 0>, // green
-				            <&gpio 24 0>; // yellow
-
+				btn-gpios = <&gpio 5 1>, // blue-btn
+				            <&gpio 6 1>, // red-btn
+				            <&gpio 26 1>, // green-btn
+				            <&gpio 24 1>; // yellow-btn
 			};
 		};
 	};
