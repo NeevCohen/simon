@@ -259,11 +259,12 @@ static int setup_btns_irqs(void) {
 	int ret = 0;
 
 	led_dev.irq_btn_0 = gpiod_to_irq(led_dev.btn_0);
-	ret = request_irq(led_dev.irq_btn_0, 
-			  btn_pushed_thread_func,
-			  IRQF_TRIGGER_FALLING,
-			  "led-btn-0", 
-			  NULL);
+	ret = request_threaded_irq(led_dev.irq_btn_0,
+				   handle_irq,
+				   btn_pushed_thread_func,
+				   IRQF_TRIGGER_RISING,
+				   "led-btn-0", 
+				   NULL);
 	if (ret) 
 	{
 		pr_err("[led] Failed to register IRQ for button 0\n");
@@ -271,11 +272,12 @@ static int setup_btns_irqs(void) {
 	}
 
 	led_dev.irq_btn_1 = gpiod_to_irq(led_dev.btn_1);
-	ret = request_irq(led_dev.irq_btn_1, 
-			  btn_pushed_thread_func,
-			  IRQF_TRIGGER_FALLING,
-			  "led-btn-1", 
-			  NULL);
+	ret = request_threaded_irq(led_dev.irq_btn_1,
+				   handle_irq,
+				   btn_pushed_thread_func,
+				   IRQF_TRIGGER_RISING,
+				   "led-btn-1", 
+				   NULL);
 	if (ret) 
 	{
 		pr_err("[led] Failed to register IRQ for button 1\n");
@@ -283,11 +285,12 @@ static int setup_btns_irqs(void) {
 	}
 
 	led_dev.irq_btn_2 = gpiod_to_irq(led_dev.btn_2);
-	ret = request_irq(led_dev.irq_btn_2, 
-			  btn_pushed_thread_func,
-			  IRQF_TRIGGER_FALLING,
-			  "led-btn-2", 
-			  NULL);
+	ret = request_threaded_irq(led_dev.irq_btn_2,
+				   handle_irq,
+				   btn_pushed_thread_func,
+				   IRQF_TRIGGER_RISING,
+				   "led-btn-3", 
+				   NULL);
 	if (ret) 
 	{
 		pr_err("[led] Failed to register IRQ for button 2\n");
@@ -295,11 +298,12 @@ static int setup_btns_irqs(void) {
 	}
 
 	led_dev.irq_btn_3 = gpiod_to_irq(led_dev.btn_3);
-	ret = request_irq(led_dev.irq_btn_3, 
-			  btn_pushed_thread_func,
-			  IRQF_TRIGGER_FALLING,
-			  "led-btn-3", 
-			  NULL);
+	ret = request_threaded_irq(led_dev.irq_btn_3,
+				   handle_irq,
+				   btn_pushed_thread_func,
+				   IRQF_TRIGGER_RISING,
+				   "led-btn-3", 
+				   NULL);
 	if (ret) 
 	{
 		pr_err("[led] Failed to register IRQ for button 3\n");
