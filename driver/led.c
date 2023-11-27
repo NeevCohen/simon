@@ -95,9 +95,6 @@ static irqreturn_t handle_irq(int irq, void *dev_id) {
 };
 
 static irqreturn_t btn_pushed_thread_func(int irq, void *dev_id) {
-	static unsigned long flags = 0;
-
-	local_irq_save(flags);
 	if (irq == led_dev.irq_btn_0) 
 	{
 		pr_info("Button 0 was pushed\n");
@@ -114,7 +111,6 @@ static irqreturn_t btn_pushed_thread_func(int irq, void *dev_id) {
 	{
 		pr_info("Button 3 was pushed\n");
 	}
-	local_irq_restore(flags);
 
 	return IRQ_HANDLED;
 };
@@ -438,7 +434,7 @@ error_btns:
 	free_leds_gpios();
 
 	return ret;
-}
+};
 
 static int dt_remove(struct platform_device *pdev) {
 	pr_info("[led] Removing device\n");
@@ -449,8 +445,7 @@ static int dt_remove(struct platform_device *pdev) {
 	proc_remove(led_dev.proc_file);
 
 	return 0;
-}
-
+};
 
 static int __init led_init(void) {
 	pr_info("[led] Loading LED driver\n");

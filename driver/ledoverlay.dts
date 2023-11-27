@@ -8,8 +8,8 @@
 		__overlay__ {
 			btn_pins: btn_pins {
 				brcm,pins = <5 6 26 24>;    // gpio no.
-				brcm,function = <0 0 0 0>;  // 0:in, 1:out
-				brcm,pull = <2>;            // 2:up 1:down
+				brcm,function = <0>;  // 0:in, 1:out
+				brcm,pull = <2>;        // 2:up 1:down 0:none
 			};
 		};
 	};
@@ -21,6 +21,7 @@
 				label = "led";
 				status = "okay";
 				pinctrl-0 = <&btn_pins>;
+				pinctrl-names = "default";
 				led-gpios = <&gpio 17 0>, // blue
 				            <&gpio 27 0>, // red
 				            <&gpio 22 0>, // green
