@@ -47,6 +47,8 @@ static struct led_device led_dev = {
 #define BTN_2_INDEX 2
 #define BTN_3_INDEX 3
 
+#define BUTTON_BOUNCE_MS 200
+
 static int dt_probe(struct platform_device *pdev);
 static int dt_remove(struct platform_device *pdev);
 
@@ -86,7 +88,7 @@ static irqreturn_t handle_irq(int irq, void *dev_id) {
 		last_press_jiffies = &led_dev.btn_3_last_press_jiffies;
 	}
 
-	if (jiffies_to_msecs(jiffies - *last_press_jiffies) < 200) // bounce
+	if (jiffies_to_msecs(jiffies - *last_press_jiffies) < BUTTON_BOUNCE_MS) // bounce
 	{
 		return IRQ_HANDLED;
 	}
@@ -100,132 +102,162 @@ static irqreturn_t btn_pushed_thread_func(int irq, void *dev_id) {
 	char button_pushed;
 
 	if (irq == led_dev.irq_btn_0) {
-		pr_info("Button 0 was pushed\n");
 		button_pushed = '0';
 	} 
 	else if (irq == led_dev.irq_btn_1) {
-		pr_info("Button 1 was pushed\n");
 		button_pushed = '1';
 	} 
 	else if (irq == led_dev.irq_btn_2) {
-		pr_info("Button 2 was pushed\n");
 		button_pushed = '2';
 	} 
 	else if (irq == led_dev.irq_btn_3) {
-		pr_info("Button 3 was pushed\n");
 		button_pushed = '3';
 	}
 
-	led_dev.read_buffer[0] = button_pushed;
-	wake_up_interruptible(&led_dev.read_queue);
+	if (led_dev.nreaders) {
+		led_dev.read_buffer[0] = button_pushed;
+		wake_up_interruptible(&led_dev.read_queue);
+	}
 
 	return IRQ_HANDLED;
 };
 
-static ssize_t led_write(struct file *filp, const char *user_buffer, size_t count, loff_t *offset) {
-	int led, action;
-	struct gpio_desc *gpio;
+static int led_open(struct inode *inode, struct file *filp) {
+	filp->private_data = &led_dev;
 
-	if (mutex_lock_interruptible(&led_dev.write_lock)) 
+	if (mutex_lock_interruptible(&led_dev.lock))
 		return -ERESTARTSYS;
 
-	while (led_dev.nwriters > 0) {
-		mutex_unlock(&led_dev.write_lock);
-		if (filp->f_flags & O_NONBLOCK)
-			return -EAGAIN;
-		if (wait_event_interruptible(led_dev.write_queue, led_dev.nwriters > 0))
-			return -ERESTARTSYS; /* signal: tell the fs layer to handle it */
-		/* otherwise loop, but first reacquire the lock */
-		if (mutex_lock_interruptible(&led_dev.write_lock))
-			return -ERESTARTSYS;
-	}
-	memset(led_dev.write_buffer, 0, sizeof(led_dev.write_buffer));
-	count = min(count, sizeof(led_dev.write_buffer));
+	/* use f_mode,not  f_flags: it's cleaner (fs/open.c tells why) */
+	if (filp->f_mode & FMODE_READ)
+		led_dev.nreaders++;
+	if (filp->f_mode & FMODE_WRITE)
+		led_dev.nwriters++;
+	mutex_unlock(&led_dev.lock);
+	return 0;
+};
 
-	if (copy_from_user(led_dev.write_buffer, user_buffer, count)) 
-	{
-		pr_err("[led] Failed to copy data from user\n");
-		mutex_unlock(&led_dev.write_lock);
-		return -EFAULT;
-	}
+static int led_release(struct inode *inode, struct file *filp) {
+	struct led_device *dev = filp->private_data;
 
-	if (sscanf(led_dev.write_buffer, "%d,%d", &led, &action) != 2) 
-	{
-		pr_err("[led] Invalid command\n");
-		mutex_unlock(&led_dev.write_lock);
-		return -EINVAL;
-	}
-
-	switch (led) {
-		case LED_BLUE_INDEX:
-			gpio = led_dev.blue;
-			break;
-		case LED_RED_INDEX:
-			gpio = led_dev.red;
-			break;
-		case LED_GREEN_INDEX:
-			gpio = led_dev.green;
-			break;
-		case LED_YELLOW_INDEX:
-			gpio = led_dev.yellow;
-			break;
-		default:
-			return count;
-	}
-
-	gpiod_set_value(gpio, !!action);
-	mutex_unlock(&led_dev.write_lock);
-	return count;
-}
+	mutex_lock(&dev->lock);
+	if (filp->f_mode & FMODE_READ)
+		dev->nreaders--;
+	if (filp->f_mode & FMODE_WRITE)
+		dev->nwriters--;
+	mutex_unlock(&dev->lock);
+	return 0;
+};
 
 static ssize_t led_read(struct file *filp, char __user *user_buffer, size_t count, loff_t *offset) {
-	if (mutex_lock_interruptible(&led_dev.read_lock)) 
+	struct led_device *dev = filp->private_data;
+
+	if (mutex_lock_interruptible(&dev->lock))
 		return -ERESTARTSYS;
 
-	while (led_dev.read_buffer[0] == 0) {
-		mutex_unlock(&led_dev.read_lock);
+	while (dev->read_buffer[0] == 0) {
+		mutex_unlock(&dev->lock);
 		if (filp->f_flags & O_NONBLOCK)
 			return -EAGAIN;
-		if (wait_event_interruptible(led_dev.read_queue, led_dev.read_buffer[0] != 0))
+		if (wait_event_interruptible(dev->read_queue, dev->read_buffer[0] != 0))
 			return -ERESTARTSYS; /* signal: tell the fs layer to handle it */
 		/* otherwise loop, but first reacquire the lock */
-		if (mutex_lock_interruptible(&led_dev.read_lock))
+		if (mutex_lock_interruptible(&dev->lock))
 			return -ERESTARTSYS;
 	}
 
 	if (count > 2) {
 		count = 2;
 	}
- 
-	if (copy_to_user(user_buffer, led_dev.read_buffer, count)) {
+
+	if (copy_to_user(user_buffer, dev->read_buffer, count)) {
 		pr_err("[led] Failed to copy data to user\n");
-		mutex_unlock(&led_dev.read_lock);
+		mutex_unlock(&dev->lock);
 		return -EFAULT;
 	}
 
-	led_dev.read_buffer[0] = 0;
-	mutex_unlock(&led_dev.read_lock);
+	dev->read_buffer[0] = 0;
+	mutex_unlock(&dev->lock);
 
 	return count;
 };
 
-static unsigned int led_poll(struct file *filp, poll_table *wait) {
+static ssize_t led_write(struct file *filp, const char *user_buffer, size_t count, loff_t *offset) {
+	struct led_device *dev = filp->private_data;
+	int led, action;
+	struct gpio_desc *gpio;
 
+	if (mutex_lock_interruptible(&dev->lock))
+		return -ERESTARTSYS;
+
+	while (dev->nwriters > 1) {
+		mutex_unlock(&dev->lock);
+		if (filp->f_flags & O_NONBLOCK)
+			return -EAGAIN;
+		if (wait_event_interruptible(dev->write_queue, dev->nwriters > 1))
+			return -ERESTARTSYS; /* signal: tell the fs layer to handle it */
+		/* otherwise loop, but first reacquire the lock */
+		if (mutex_lock_interruptible(&dev->lock))
+			return -ERESTARTSYS;
+	}
+	memset(dev->write_buffer, 0, sizeof(dev->write_buffer));
+	count = min(count, sizeof(dev->write_buffer));
+
+	if (copy_from_user(dev->write_buffer, user_buffer, count))
+	{
+		pr_err("[led] Failed to copy data from user\n");
+		mutex_unlock(&dev->lock);
+		return -EFAULT;
+	}
+
+	if (sscanf(dev->write_buffer, "%d,%d", &led, &action) != 2)
+	{
+		pr_err("[led] Invalid command\n");
+		mutex_unlock(&dev->lock);
+		return -EINVAL;
+	}
+
+	switch (led) {
+		case LED_BLUE_INDEX:
+			gpio = dev->blue;
+			break;
+		case LED_RED_INDEX:
+			gpio = dev->red;
+			break;
+		case LED_GREEN_INDEX:
+			gpio = dev->green;
+			break;
+		case LED_YELLOW_INDEX:
+			gpio = dev->yellow;
+			break;
+		default:
+			return count;
+	}
+
+	gpiod_set_value(gpio, !!action);
+	mutex_unlock(&dev->lock);
+	return count;
+}
+
+static unsigned int led_poll(struct file *filp, poll_table *wait) {
+	struct led_device *dev = filp->private_data;
 	// Device is always writeable
 	unsigned int mask = POLLOUT | POLLWRNORM;
 
-	mutex_lock(&led_dev.read_lock);
-	poll_wait(filp, &led_dev.read_queue, wait);
-	if (led_dev.nreaders > 0) {
+	mutex_lock(&dev->lock);
+	poll_wait(filp, &dev->read_queue, wait);
+	if (dev->nreaders > 0) {
 		mask |= POLLIN | POLLRDNORM;
 	}
-	mutex_unlock(&led_dev.read_lock);
+	mutex_unlock(&dev->lock);
 	return mask;
 };
 
 static struct proc_ops fops = {
-	.proc_write = led_write,
+	.proc_open = led_open,
+	.proc_release = led_release,
 	.proc_read = led_read,
+	.proc_write = led_write,
 	.proc_poll = led_poll,
 };
 
@@ -485,8 +517,7 @@ static int dt_probe(struct platform_device *pdev) {
 
 	init_waitqueue_head(&led_dev.read_queue);
 	init_waitqueue_head(&led_dev.write_queue);
-	mutex_init(&led_dev.read_lock);
-	mutex_init(&led_dev.write_lock);
+	mutex_init(&led_dev.lock);
 	
 	led_dev.proc_file = proc_create("led", 0666, NULL, &fops);
 	if (led_dev.proc_file == NULL) 

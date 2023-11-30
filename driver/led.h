@@ -27,6 +27,6 @@ struct led_device {
 	char read_buffer[READ_BUFFER_SIZE];
 	wait_queue_head_t read_queue, write_queue;
 	size_t nreaders, nwriters;
-	struct mutex read_lock, write_lock;
+	struct mutex lock;
 };
 
