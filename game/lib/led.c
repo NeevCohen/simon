@@ -1,8 +1,12 @@
+
 #include <stdio.h>
 #include <string.h>
 
-#include "simon.h"
+#include "led.h"
 
+/*
+Constants
+*/
 #define NUM_LEDS 4
 #define NUM_BTNS 4
 
@@ -11,7 +15,12 @@
 
 #define LED_DEV_FILE_PATH "/proc/led"
 
-int simon_init_led_device(struct led_device *dev) {
+/*
+Function defenitions
+*/
+static int control_led(struct led_device *dev, int led, int command);
+
+int led_init_device(struct led_device *dev) {
 	dev->filp = fopen(LED_DEV_FILE_PATH, "r+");
 	if (!dev->filp) {
 		perror("fopen");
@@ -19,6 +28,18 @@ int simon_init_led_device(struct led_device *dev) {
 	}
 
 	return 0;
+};
+
+int led_release_device(struct led_device *dev) {
+	return fclose(dev->filp);
+}
+
+int led_turn_on(struct led_device *dev, int led) {
+	return control_led(dev, led, ON);
+};
+
+int led_turn_off(struct led_device *dev, int led) {
+	return control_led(dev, led, OFF);
 };
 
 static int control_led(struct led_device *dev, int led, int command) {
@@ -46,12 +67,4 @@ static int control_led(struct led_device *dev, int led, int command) {
 	}
 
 	return 0;
-};
-
-int simon_turn_led_on(struct led_device *dev, int led) {
-	return control_led(dev, led, ON);
-};
-
-int simon_turn_led_off(struct led_device *dev, int led) {
-	return control_led(dev, led, OFF);
 };
