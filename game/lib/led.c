@@ -64,6 +64,7 @@ static int control_led(struct led_device *dev, int led, int command) {
 
 	if (fflush(dev->filp) < 0){
 		printf("[control_led] Failed to flush LED file\n");
+		return -1;
 	}
 
 	return 0;
