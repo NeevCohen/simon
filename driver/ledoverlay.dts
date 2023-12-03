@@ -7,9 +7,9 @@
 		target = <&gpio>;
 		__overlay__ {
 			btn_pins: btn_pins {
-				brcm,pins = <5 6 26 24>;    // gpio no.
-				brcm,function = <0>;  // 0:in, 1:out
-				brcm,pull = <2>;        // 2:up 1:down 0:none
+				brcm,pins = <5 6 26 24>; // gpio no.
+				brcm,function = <0>;     // 0:in, 1:out
+				brcm,pull = <2>;         // 2:up 1:down 0:none
 			};
 		};
 	};
@@ -22,15 +22,15 @@
 				status = "okay";
 				pinctrl-0 = <&btn_pins>;
 				pinctrl-names = "default";
-				led-gpios = <&gpio 17 0>, // blue
-				            <&gpio 27 0>, // red
-				            <&gpio 22 0>, // green
-				            <&gpio 23 0>; // yellow
+				led-gpios = <&gpio 17 0>, // led-0
+				            <&gpio 27 0>, // led-1
+				            <&gpio 22 0>, // led-2
+				            <&gpio 23 0>; // led-3
 
-				btn-gpios = <&gpio 5 1>, // blue-btn
-				            <&gpio 6 1>, // red-btn
-				            <&gpio 26 1>, // green-btn
-				            <&gpio 24 1>; // yellow-btn
+				btn-gpios = <&gpio 5 1>,  // btn-0
+				            <&gpio 6 1>,  // btn-1
+				            <&gpio 26 1>, // btn-2
+				            <&gpio 24 1>; // btn-3
 			};
 		};
 	};

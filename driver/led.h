@@ -6,10 +6,10 @@
 #define READ_BUFFER_SIZE 2
 
 struct led_device {
-	struct gpio_desc *blue, 
-			 *red, 
-			 *green, 
-			 *yellow, 
+	struct gpio_desc *led_0, 
+			 *led_1, 
+			 *led_2, 
+			 *led_3, 
 			 *btn_0, 
 			 *btn_1, 
 			 *btn_2, 

@@ -15,10 +15,10 @@ MODULE_AUTHOR("Neev Cohen");
 MODULE_LICENSE("GPL v2");
 
 static struct led_device led_dev = {
-	.blue = NULL,
-	.red = NULL,
-	.green = NULL,
-	.yellow = NULL,
+	.led_0 = NULL,
+	.led_1 = NULL,
+	.led_2 = NULL,
+	.led_3 = NULL,
 	.btn_0 = NULL,
 	.btn_1 = NULL,
 	.btn_2 = NULL,
@@ -36,16 +36,6 @@ static struct led_device led_dev = {
 	.nreaders = 0,
 	.nwriters = 0,
 };
-
-#define LED_BLUE_INDEX 0
-#define LED_RED_INDEX 1
-#define LED_GREEN_INDEX 2
-#define LED_YELLOW_INDEX 3
-
-#define BTN_0_INDEX 0
-#define BTN_1_INDEX 1
-#define BTN_2_INDEX 2
-#define BTN_3_INDEX 3
 
 #define BUTTON_BOUNCE_MS 200
 
@@ -218,17 +208,17 @@ static ssize_t led_write(struct file *filp, const char *user_buffer, size_t coun
 	}
 
 	switch (led) {
-		case LED_BLUE_INDEX:
-			gpio = dev->blue;
+		case 0:
+			gpio = dev->led_0;
 			break;
-		case LED_RED_INDEX:
-			gpio = dev->red;
+		case 1:
+			gpio = dev->led_1;
 			break;
-		case LED_GREEN_INDEX:
-			gpio = dev->green;
+		case 2:
+			gpio = dev->led_2;
 			break;
-		case LED_YELLOW_INDEX:
-			gpio = dev->yellow;
+		case 3:
+			gpio = dev->led_3;
 			break;
 		default:
 			return count;
@@ -264,59 +254,59 @@ static struct proc_ops fops = {
 static int setup_leds_gpios(struct device *dev) {
 	int ret = 0;
 
-	led_dev.blue = gpiod_get_index(dev, "led", LED_BLUE_INDEX, GPIOD_OUT_LOW);
-	if (IS_ERR(led_dev.blue)) 
+	led_dev.led_0 = gpiod_get_index(dev, "led", 0, GPIOD_OUT_LOW);
+	if (IS_ERR(led_dev.led_0)) 
 	{
-		pr_err("[led] Failed to setup blue LED\n");
-		return PTR_ERR(led_dev.blue);
+		pr_err("[led] Failed to setup LED 0\n");
+		return PTR_ERR(led_dev.led_0);
 	}
 
-	led_dev.red = gpiod_get_index(dev, "led", LED_RED_INDEX, GPIOD_OUT_LOW);
-	if (IS_ERR(led_dev.red)) 
+	led_dev.led_1 = gpiod_get_index(dev, "led", 1, GPIOD_OUT_LOW);
+	if (IS_ERR(led_dev.led_1)) 
 	{
-		pr_err("[led] Failed to setup red LED\n");
-		ret = PTR_ERR(led_dev.red);
-		goto error_red;
+		pr_err("[led] Failed to setup LED 1\n");
+		ret = PTR_ERR(led_dev.led_1);
+		goto error_led_1;
 	}
 
-	led_dev.green = gpiod_get_index(dev, "led", LED_GREEN_INDEX, GPIOD_OUT_LOW);
-	if (IS_ERR(led_dev.green)) 
+	led_dev.led_2 = gpiod_get_index(dev, "led", 2, GPIOD_OUT_LOW);
+	if (IS_ERR(led_dev.led_2)) 
 	{
-		pr_err("[led] Failed to setup green LED\n");
-		ret = PTR_ERR(led_dev.green);
-		goto error_green;
+		pr_err("[led] Failed to setup LED 2\n");
+		ret = PTR_ERR(led_dev.led_2);
+		goto error_led_2;
 	}
 
-	led_dev.yellow = gpiod_get_index(dev, "led", LED_YELLOW_INDEX, GPIOD_OUT_LOW);
-	if (IS_ERR(led_dev.yellow)) 
+	led_dev.led_3 = gpiod_get_index(dev, "led", 3, GPIOD_OUT_LOW);
+	if (IS_ERR(led_dev.led_3)) 
 	{
-		pr_err("[led] Failed to setup yellow LED\n");
-		ret = PTR_ERR(led_dev.yellow);
-		goto error_yellow;
+		pr_err("[led] Failed to setup LED 3\n");
+		ret = PTR_ERR(led_dev.led_3);
+		goto error_led_3;
 	}
 
 	return ret;	
 
-error_yellow:
-	gpiod_put(led_dev.green);
-error_green:
-	gpiod_put(led_dev.red);
-error_red:
-	gpiod_put(led_dev.blue);
+error_led_3:
+	gpiod_put(led_dev.led_2);
+error_led_2:
+	gpiod_put(led_dev.led_1);
+error_led_1:
+	gpiod_put(led_dev.led_0);
 	return ret;
 };
 
 static int setup_btns_gpios(struct device *dev) {
 	int ret = 0;
 
-	led_dev.btn_0 = gpiod_get_index(dev, "btn", BTN_0_INDEX, GPIOD_IN);
+	led_dev.btn_0 = gpiod_get_index(dev, "btn", 0, GPIOD_IN);
 	if (IS_ERR(led_dev.btn_0)) 
 	{
 		pr_err("[led] Failed to setup button 0\n");
 		return PTR_ERR(led_dev.btn_0);
 	}
 
-	led_dev.btn_1 = gpiod_get_index(dev, "btn", BTN_1_INDEX, GPIOD_IN);
+	led_dev.btn_1 = gpiod_get_index(dev, "btn", 1, GPIOD_IN);
 	if (IS_ERR(led_dev.btn_1)) 
 	{
 		printk("[led] Failed to setup button 1\n");
@@ -324,7 +314,7 @@ static int setup_btns_gpios(struct device *dev) {
 		goto error_btn_1;
 	}
 
-	led_dev.btn_2 = gpiod_get_index(dev, "btn", BTN_2_INDEX, GPIOD_IN);
+	led_dev.btn_2 = gpiod_get_index(dev, "btn", 2, GPIOD_IN);
 	if (IS_ERR(led_dev.btn_2)) 
 	{
 		printk("[led] Failed to setup button 2\n");
@@ -332,7 +322,7 @@ static int setup_btns_gpios(struct device *dev) {
 		goto error_btn_2;
 	}
 
-	led_dev.btn_3 = gpiod_get_index(dev, "btn", BTN_3_INDEX, GPIOD_IN);
+	led_dev.btn_3 = gpiod_get_index(dev, "btn", 3, GPIOD_IN);
 	if (IS_ERR(led_dev.btn_3)) 
 	{
 		printk("[led] Failed to setup button 3\n");
@@ -444,28 +434,28 @@ static void free_btns_gpios(void) {
 };
 
 static void free_leds_gpios(void) {
-	if (led_dev.blue) 
+	if (led_dev.led_0) 
 	{
-		gpiod_put(led_dev.blue);
-		led_dev.blue = NULL;
+		gpiod_put(led_dev.led_0);
+		led_dev.led_0 = NULL;
 	}
 
-	if (led_dev.red) 
+	if (led_dev.led_1) 
 	{
-		gpiod_put(led_dev.red);
-		led_dev.red = NULL;
+		gpiod_put(led_dev.led_1);
+		led_dev.led_1 = NULL;
 	}
 
-	if (led_dev.green) 
+	if (led_dev.led_2) 
 	{
-		gpiod_put(led_dev.green);
-		led_dev.green = NULL;
+		gpiod_put(led_dev.led_2);
+		led_dev.led_2 = NULL;
 	}
 
-	if (led_dev.yellow) 
+	if (led_dev.led_3) 
 	{
-		gpiod_put(led_dev.yellow);
-		led_dev.yellow = NULL;
+		gpiod_put(led_dev.led_3);
+		led_dev.led_3 = NULL;
 	}
 };
 
