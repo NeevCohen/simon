@@ -7,18 +7,12 @@
 /*
 Constants
 */
-#define NUM_LEDS 4
-#define NUM_BTNS 4
-
-#define OFF 0
-#define ON 1
-
 #define LED_DEV_FILE_PATH "/proc/led"
 
 /*
 Function defenitions
 */
-static int control_led(struct led_device *dev, int led, int command);
+int control_led(struct led_device *dev, int led, int command);
 
 int led_init_device(struct led_device *dev) {
 	dev->filp = fopen(LED_DEV_FILE_PATH, "r+");
@@ -42,7 +36,29 @@ int led_turn_off(struct led_device *dev, int led) {
 	return control_led(dev, led, OFF);
 };
 
-static int control_led(struct led_device *dev, int led, int command) {
+int led_turn_on_all(struct led_device *dev) {
+	int ret;
+	for (int i = 0; i < NUM_LEDS; ++i) {
+		if ((ret = led_turn_on(dev, i))) {
+			return ret;
+		}
+	}
+
+	return 0;
+};
+
+int led_turn_off_all(struct led_device *dev) {
+	int ret;
+	for (int i = 0; i < NUM_LEDS; ++i) {
+		if ((ret = led_turn_off(dev, i))) {
+			return ret;
+		}
+	}
+
+	return 0;
+};
+
+int control_led(struct led_device *dev, int led, int command) {
 	size_t written = 0;
 	char command_str[4];
 
