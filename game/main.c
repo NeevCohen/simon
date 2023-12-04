@@ -9,6 +9,8 @@
 
 #define USEC_IN_MSEC 1000
 
+static const char start_command = 's';
+
 static inline long long msec_to_usec(long long msec) {
 	return msec * USEC_IN_MSEC;
 }
@@ -29,7 +31,7 @@ int generate_random_number(int min, int max) {
 }
 
 /*
-Run in loop, turning all leds on and off until a user writes 's' (start) into stdin
+Run in loop, turning all leds on and off until a user enters the start command
 */
 int turn_leds_on_off_until_input_loop(struct led_device *dev) {
 	int led = 0, command = ON;
@@ -71,7 +73,7 @@ int turn_leds_on_off_until_input_loop(struct led_device *dev) {
 					free(poll_fds);
 					return EXIT_FAILURE;
 				}
-				if (buf[0] == 's') {
+				if (buf[0] == start_command) {
 					// flash twice
 					for (int i = 0; i < 2; ++i) {
 						led_turn_off_all(dev);
@@ -124,11 +126,12 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 
+	printf("Welcome to Simon! Please press '%c' to start!\n", start_command);
 	if (turn_leds_on_off_until_input_loop(&dev)) {
 		led_release_device(&dev);
 		return EXIT_FAILURE;
 	}
-
+	printf("Starting game! Good luck!\n");
 	poll_fd.fd = fileno(dev.filp);
 	poll_fd.events = POLLIN;
 
@@ -139,6 +142,7 @@ int main(int argc, char **argv) {
 			exit(EXIT_FAILURE);
 		}
 
+		printf("Round: %d\n", round);
 		if (poll_fd.revents & POLLIN) {
 			s = fread(buf, sizeof(buf), 1, dev.filp);
 			if (s < 0) {
@@ -146,13 +150,13 @@ int main(int argc, char **argv) {
 				perror("read");
 				exit(EXIT_FAILURE);
 			}
-			printf("Pushed button %s\n", buf);
+			printf("Nice!\n");
+			round++;
 		} else {
 			led_release_device(&dev);
 			fprintf(stderr, "Failed to poll\n");
 			exit(EXIT_FAILURE);
 		}
-		
 	}
 
 	led_release_device(&dev);
