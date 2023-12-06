@@ -16,21 +16,21 @@ sudo apt install -y kernel-headers-$(uname -r)
 
 Then, to build the driver run the following commands - 
 ```shell
-$ cd driver
-$ make
+cd driver
+make
 ```
 
 Then you need to load the driver and the device tree overlay into the kernel. You can do so with the following commands
 
 ```shell
-$ sudo insmod ./led.ko
-$ sudo dtoverlay ledoverlay.dtbo
+sudo insmod ./led.ko
+sudo dtoverlay ledoverlay.dtbo
 ```
 
 Now, your driver should be loaded into the kernel. You can verify it by running the command 
 
 ```shell
-$ lsmod | grep led
+lsmod | grep led
 ```
 
 You should see output like this 
@@ -48,13 +48,13 @@ To turn an LED on/off you need to write to the `/proc/led` file the index of the
 For example, if you wish to turn off LED 0 (which is connected to pin 17) run the command 
 
 ```shell
-$ echo 0,1 > /proc/led
+echo 0,1 > /proc/led
 ```
 
 To turn off LED 3 (which is connected to ping 23) run the command
 
 ```shell
-$ echo 3,0 > /proc/led
+echo 3,0 > /proc/led
 ```
 
 ### Reading the buttons
@@ -73,14 +73,14 @@ The actual game logic is in the `game` directory.
 In order to build the game run the following 
 
 ```shell
-$ cd game
-$ make
+cd game
+make
 ```
 
 You can then start the game by running 
 
 ```shell
-$ ./simon
+./simon
 ```
 
 To start playing the game, enter 's', and follow the lights closely!
