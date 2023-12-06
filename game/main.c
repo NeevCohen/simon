@@ -9,8 +9,6 @@
 
 #define USEC_IN_MSEC 1000
 
-static const char start_command = 's';
-
 static inline long long msec_to_usec(long long msec) {
 	return msec * USEC_IN_MSEC;
 }
@@ -27,13 +25,13 @@ long long time_in_ms(void) {
 }
 
 int generate_random_number(int min, int max) {
-	return rand() % (max + 1 - max) + min;
+	return min + rand() / (RAND_MAX / (max - min + 1) + 1);
 }
 
 /*
 Run in loop, turning all leds on and off until a user enters the start command
 */
-int turn_leds_on_off_until_input_loop(struct led_device *dev) {
+int turn_leds_on_off_until_input_loop(struct led_device *dev, const char start_command) {
 	int led = 0, command = ON;
 	struct pollfd *poll_fds;
 	nfds_t nfds = 2;
@@ -68,7 +66,6 @@ int turn_leds_on_off_until_input_loop(struct led_device *dev) {
 			if (poll_fds[i].revents & POLLIN) {
 				s = read(poll_fds[i].fd, buf, sizeof(buf));
 				if (s < 0) {
-					led_release_device(dev);
 					perror("read");
 					free(poll_fds);
 					return EXIT_FAILURE;
@@ -114,51 +111,104 @@ int turn_leds_on_off_until_input_loop(struct led_device *dev) {
 	}
 }
 
-int main(int argc, char **argv) {
-	struct led_device dev;
-	struct pollfd poll_fd;
-	int i, round;
+/*
+	Flash the LEDS in the `leds` array to the user
+*/
+int show_round_leds(struct led_device *dev, int *leds, int round) {
+	for (int i = 0; i < round; ++i) {
+		if (led_turn_on(dev, leds[i])) {
+			return EXIT_FAILURE;
+		}
+		usleep(msec_to_usec(500));
+		if (led_turn_off(dev, leds[i])) {
+			return EXIT_FAILURE;
+		}
+		usleep(msec_to_usec(500));
+	}
+	return EXIT_SUCCESS;
+}
+
+/*
+	Read the button input from the user and validate the buttons match the LEDS in the `leds` array.
+	If all buttons are correct then return EXIT_SUCCESS, else EXIT_FAILURE.
+*/
+int check_round(struct led_device *dev, int *leds, int round) {
 	size_t s;
 	char buf[2];
+
+	for (int i = 0; i < round; ++i) {
+		s = fread(buf, sizeof(buf), 1, dev->filp);
+		if (s < 0) {
+			perror("read");
+			exit(EXIT_FAILURE);
+		}
+		if (atoi(buf) != leds[i]) {
+			return EXIT_FAILURE;
+		}
+	}
+
+	return EXIT_SUCCESS;
+};
+
+int main(int argc, char **argv) {
+	const char start_command = 's';
+	struct led_device dev;
+	struct pollfd poll_fd;
+	int round = 1;
+	int *round_leds;
 
 	if (led_init_device(&dev) < 0) {
 		fprintf(stderr, "[simon] Failed to initialize led device\n");
 		exit(EXIT_FAILURE);
 	}
 
-	printf("Welcome to Simon! Please press '%c' to start!\n", start_command);
-	if (turn_leds_on_off_until_input_loop(&dev)) {
+	printf("Welcome to Simon! Please press '%c' to start! ", start_command);
+	fflush(stdout);
+	if (turn_leds_on_off_until_input_loop(&dev, start_command)) {
 		led_release_device(&dev);
 		return EXIT_FAILURE;
 	}
+
 	printf("Starting game! Good luck!\n");
 	poll_fd.fd = fileno(dev.filp);
 	poll_fd.events = POLLIN;
 
+	printf("Round: %d", round);
+	fflush(stdout);
 	while (1) {
-		if (poll(&poll_fd, 1, -1) < 0) {
+		round_leds = calloc(round, sizeof(int));
+		if (!round_leds) {
 			led_release_device(&dev);
-			perror("poll");
+			perror("calloc");
 			exit(EXIT_FAILURE);
 		}
 
-		printf("Round: %d\n", round);
-		if (poll_fd.revents & POLLIN) {
-			s = fread(buf, sizeof(buf), 1, dev.filp);
-			if (s < 0) {
-				led_release_device(&dev);
-				perror("read");
-				exit(EXIT_FAILURE);
-			}
-			printf("Nice!\n");
-			round++;
-		} else {
+		for (int i = 0; i < round; ++i) {
+			round_leds[i] = generate_random_number(0, NUM_LEDS - 1);
+		}
+
+		if (show_round_leds(&dev, round_leds, round)) {
+			free(round_leds);
 			led_release_device(&dev);
-			fprintf(stderr, "Failed to poll\n");
+			fprintf(stdout, "Failed to show LEDS for round %d\n", round);
 			exit(EXIT_FAILURE);
 		}
+
+		if (check_round(&dev, round_leds, round)) {
+			free(round_leds);
+			led_release_device(&dev);
+			printf("\n");
+			printf("You lost!\n");
+			return EXIT_SUCCESS;
+		}
+
+		++round;
+		printf("\b%d", round);
+		fflush(stdout);
+		usleep(msec_to_usec(1000));
 	}
 
+	free(round_leds);
 	led_release_device(&dev);
 
 	return EXIT_SUCCESS;
