@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <poll.h>
+#include <time.h>
 
 #include "led.h"
 
@@ -31,46 +32,36 @@ int generate_random_number(int min, int max) {
 /*
 Run in loop, turning all leds on and off until a user enters the start command
 */
-int turn_leds_on_off_until_input_loop(struct led_device *dev, const char start_command) {
+int turn_leds_on_off_until_input_loop(struct led_device *dev) {
 	int led = 0, command = ON;
-	struct pollfd *poll_fds;
-	nfds_t nfds = 2;
+	struct pollfd poll_fd;
 	size_t s;
 	char buf[2];
 	long long last_led_toggle_time_ms = time_in_ms();
 
-	poll_fds = calloc(nfds, sizeof(struct pollfd));
-	if (!poll_fds) {
-		perror("calloc");
-		return EXIT_FAILURE;
-	}
 
-	poll_fds[0].fd = fileno(stdin);
-	poll_fds[0].events = POLLIN;
-
-	poll_fds[1].fd = fileno(dev->filp);
-	poll_fds[1].events = POLLOUT;
+	poll_fd.fd = fileno(dev->filp);
+	poll_fd.events = POLLIN | POLLOUT;
 
 	while (1) {
-		if (poll(poll_fds, nfds, -1) < 0) {
+		if (poll(&poll_fd, 1, -1) < 0) {
 			perror("poll");
-			free(poll_fds);
 			return EXIT_FAILURE;
 		}
 
-		for (nfds_t i = 0; i < nfds; ++i) {
-			if (poll_fds[i].revents == 0) {
+		for (nfds_t i = 0; i < 1; ++i) {
+			if (poll_fd.revents == 0) {
 				continue;
 			}
 
-			if (poll_fds[i].revents & POLLIN) {
-				s = read(poll_fds[i].fd, buf, sizeof(buf));
+			if (poll_fd.revents & POLLIN) {
+				s = read(poll_fd.fd, buf, sizeof(buf));
 				if (s < 0) {
 					perror("read");
-					free(poll_fds);
 					return EXIT_FAILURE;
 				}
-				if (buf[0] == start_command) {
+				if (buf[0]) // if any button was pressed
+				{
 					// flash twice
 					for (int i = 0; i < 2; ++i) {
 						led_turn_off_all(dev);
@@ -79,11 +70,9 @@ int turn_leds_on_off_until_input_loop(struct led_device *dev, const char start_c
 						usleep(msec_to_usec(200));
 						led_turn_off_all(dev);
 					}
-					free(poll_fds);
 					return EXIT_SUCCESS;
 				}
-				fflush(stdin);
-			} else if (poll_fds[i].revents & POLLOUT) {
+			} else if (poll_fd.revents & POLLOUT) {
 				if (time_in_ms() - last_led_toggle_time_ms < 250) {
 					usleep(msec_to_usec(5)); // sleep 5 milliseconds
 					break;
@@ -91,7 +80,6 @@ int turn_leds_on_off_until_input_loop(struct led_device *dev, const char start_c
 			
 				if (control_led(dev, led, command)) {
 					fprintf(stderr, "Failed to control LED %d\n", led);
-					free(poll_fds);
 					return EXIT_FAILURE;
 				}
 				last_led_toggle_time_ms = time_in_ms();
@@ -103,8 +91,7 @@ int turn_leds_on_off_until_input_loop(struct led_device *dev, const char start_c
 					command = !command;
 				}
 			} else { /* POLLHUP | POLLERR */
-				printf("Failed %d %d\n", i, poll_fds[i].revents & POLLHUP);
-				free(poll_fds);
+				fprintf(stderr, "Recieved error while polling device file\n");
 				return EXIT_FAILURE;
 			}
 		}
@@ -151,41 +138,38 @@ int check_round(struct led_device *dev, int *leds, int round) {
 };
 
 int main(int argc, char **argv) {
-	const char start_command = 's';
 	struct led_device dev;
-	struct pollfd poll_fd;
 	int round = 1;
-	int *round_leds;
+	int *round_leds = NULL;
+
+	// Set a new random seed every time the game is ran
+	srand(time(NULL));
 
 	if (led_init_device(&dev) < 0) {
 		fprintf(stderr, "[simon] Failed to initialize led device\n");
 		exit(EXIT_FAILURE);
 	}
 
-	printf("Welcome to Simon! Please press '%c' to start! ", start_command);
-	fflush(stdout);
-	if (turn_leds_on_off_until_input_loop(&dev, start_command)) {
+	printf("Welcome to Simon! Please press any button to start!\n");
+	if (turn_leds_on_off_until_input_loop(&dev)) {
 		led_release_device(&dev);
 		return EXIT_FAILURE;
 	}
 
 	printf("Starting game! Good luck!\n");
-	poll_fd.fd = fileno(dev.filp);
-	poll_fd.events = POLLIN;
-
 	printf("Round: %d", round);
-	fflush(stdout);
 	while (1) {
-		round_leds = calloc(round, sizeof(int));
+		// Allocate more buffer space every 5 rounds
+		if ((round - 1) % 5 == 0) { 
+			round_leds = realloc(round_leds, sizeof(int) * round * 5);
+		}
 		if (!round_leds) {
 			led_release_device(&dev);
-			perror("calloc");
+			perror("realloc");
 			exit(EXIT_FAILURE);
 		}
 
-		for (int i = 0; i < round; ++i) {
-			round_leds[i] = generate_random_number(0, NUM_LEDS - 1);
-		}
+		round_leds[round - 1] = generate_random_number(0, NUM_LEDS - 1);
 
 		if (show_round_leds(&dev, round_leds, round)) {
 			free(round_leds);
