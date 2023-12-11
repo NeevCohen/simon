@@ -236,7 +236,7 @@ static unsigned int led_poll(struct file *filp, poll_table *wait) {
 
 	mutex_lock(&dev->lock);
 	poll_wait(filp, &dev->read_queue, wait);
-	if (dev->nreaders > 0) {
+	if (dev->nreaders > 0 && dev->read_buffer[0]) { // if there are readers and data to read
 		mask |= POLLIN | POLLRDNORM;
 	}
 	mutex_unlock(&dev->lock);
