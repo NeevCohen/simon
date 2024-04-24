@@ -84,8 +84,3 @@ You can then start the game by running
 ```
 
 To start playing the game, enter 's', and follow the lights closely!
-
-Here's a video of the game in action
-
-![](example.mov)
-
